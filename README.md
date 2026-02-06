@@ -69,8 +69,7 @@ make build             # Build container image with correct Python version from 
 You can use the https://skills.sh CLI tool to install it into a variety of agentic tools.
 
 ```sh
-# npx skills add jritsema/python-project
-npx skills add git@github.com:jritsema/python-project.git
+npx skills add jritsema/python-project
 ```
 
 For Kiro IDE, you can install it as a power. Go to the Kiro Powers tab and click install. Use the following URL:
