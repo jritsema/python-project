@@ -44,6 +44,7 @@ You go from zero to a fully configured, production-ready Python project in under
 
 - Git repository initialized automatically
 - Proper logging utilities included
+- Unit tests (pytest) and linting/formatting (ruff) wired up out of the box
 - Optimized multi-stage Dockerfile (if requested)
 
 **Simple Make Interface**
@@ -60,6 +61,9 @@ You go from zero to a fully configured, production-ready Python project in under
 make init              # Initialize project (Python, venv, dependencies)
 make install           # Install all dependencies from lockfile
 make install <package> # Add a new package
+make test              # Run unit tests with pytest
+make lint              # Lint code with ruff
+make format            # Format code with ruff
 make start             # Run the project (loads .env if present)
 make build             # Build container image with correct Python version from pyproject.toml
 ```
