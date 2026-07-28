@@ -7,7 +7,7 @@ author: John Ritsema
 license: MIT-0
 metadata:
   author: John Ritsema
-  version: "0.1"
+  version: "0.2"
 ---
 
 # Instructions
@@ -37,22 +37,34 @@ description = "<project-description>"
 requires-python = ">=3.13"
 dependencies = []
 
+[dependency-groups]
+dev = [
+    "pytest",
+    "ruff",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["."]
+
+[tool.ruff]
+line-length = 100
 ```
 
-If AWS SDK is needed, add `"boto3"` to the dependencies array.
+If AWS SDK is needed, add `"boto3"` to the `[project].dependencies` array.
 
 ### main.py
 
 ```python
 import logging
+
 from log import info
 
+# basicConfig sets the level that the helpers in log.py read to decide
+# whether to emit. Change level=logging.DEBUG to see debug output.
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -60,7 +72,6 @@ logging.basicConfig(
 
 
 def main():
-    logging.info("<project-name>")
     info({"project_name": "<project-name>"})
 
 
@@ -71,8 +82,8 @@ if __name__ == "__main__":
 ### log.py
 
 ```python
-import logging
 import json
+import logging
 
 
 def debug(obj):
@@ -91,7 +102,37 @@ def warn(obj):
 
 
 def error(obj):
+    # Errors always print, regardless of the configured log level.
     print(json.dumps(obj, indent=2, default=str))
+```
+
+### test_main.py
+
+```python
+import json
+import logging
+
+import log
+
+
+def test_info_emits_json_at_info_level(capsys):
+    logging.getLogger().setLevel(logging.INFO)
+    log.info({"hello": "world"})
+    out = capsys.readouterr().out
+    assert json.loads(out) == {"hello": "world"}
+
+
+def test_debug_is_suppressed_at_info_level(capsys):
+    logging.getLogger().setLevel(logging.INFO)
+    log.debug({"hidden": True})
+    assert capsys.readouterr().out == ""
+
+
+def test_error_always_emits(capsys):
+    logging.getLogger().setLevel(logging.ERROR)
+    log.error({"boom": True})
+    out = capsys.readouterr().out
+    assert json.loads(out) == {"boom": True}
 ```
 
 ### Makefile
@@ -126,6 +167,21 @@ install:
 		uv add $$pkg; \
 	fi
 
+## test: run unit tests
+.PHONY: test
+test:
+	uv run pytest
+
+## lint: lint code with ruff
+.PHONY: lint
+lint:
+	uv run ruff check .
+
+## format: format code with ruff
+.PHONY: format
+format:
+	uv run ruff format .
+
 ## start: run local project
 .PHONY: start
 start:
@@ -141,6 +197,9 @@ build:
 	echo "Building $$PROJECT_NAME with Python $$PYTHON_VERSION"; \
 	docker build --build-arg PYTHON_VERSION=$$PYTHON_VERSION -t $$PROJECT_NAME .
 
+# Catch-all: lets `make install <package>` pass <package> as a no-op goal.
+# Note: this silently swallows unknown targets, so typos (e.g. `make tset`)
+# exit 0 and do nothing instead of erroring.
 %:
 	@:
 ```
@@ -152,6 +211,8 @@ build:
 .vscode
 *.swp
 __pycache__
+.pytest_cache
+.ruff_cache
 .env
 ```
 
@@ -167,7 +228,10 @@ __pycache__
 
 ### README.md
 
-```markdown
+Create `README.md` with the following content (note: the outer fence below uses
+four backticks so the inner code blocks are preserved verbatim):
+
+````markdown
 # <project-name>
 
 <project-description>
@@ -188,11 +252,21 @@ Run the project:
 ```
 make start
 ```
+
+Test, lint, and format:
 ```
+make test
+make lint
+make format
+```
+````
 
 ### AGENTS.md
 
-```markdown
+Create `AGENTS.md` with the following content (note: the outer fence below uses
+four backticks so the inner code blocks are preserved verbatim):
+
+````markdown
 # <project-name>
 
 This is a Python project using `uv` for dependency management.
@@ -201,6 +275,7 @@ This is a Python project using `uv` for dependency management.
 
 - `main.py` - Main entry point
 - `log.py` - Logging utilities (debug, info, warn, error functions)
+- `test_main.py` - Unit tests (pytest)
 - `pyproject.toml` - Project metadata and dependencies
 - `uv.lock` - Locked dependency versions
 - `Makefile` - Development commands
@@ -228,6 +303,14 @@ This automatically:
 - Loads environment variables from `.env` if present
 - Runs the project in the virtual environment
 
+## Testing, Linting, and Formatting
+
+```bash
+make test    # run unit tests with pytest
+make lint    # lint with ruff
+make format  # format with ruff
+```
+
 ## Environment Variables
 
 Add environment variables to `.env`:
@@ -243,12 +326,16 @@ These are automatically loaded when running `make start`.
 - `make init` - Initialize project (first time setup)
 - `make install` - Install all dependencies
 - `make install <package>` - Add a new package
+- `make test` - Run unit tests
+- `make lint` - Lint code with ruff
+- `make format` - Format code with ruff
 - `make start` - Run the project
 - `make build` - Build container image (if Docker support enabled)
 
 ## Python Version
 
 This project requires Python <requires-python-version> or higher (see `pyproject.toml`).
+````
 
 ### Dockerfile (if container support requested)
 
@@ -326,7 +413,8 @@ Project created successfully!
 
 Next steps:
 - Add dependencies: make install <package-name>
-- Run the project: make start
+- Run tests:        make test
+- Run the project:  make start
 ```
 
 ## Notes
@@ -334,6 +422,7 @@ Next steps:
 - The project slug should be the project name in lowercase with spaces replaced by hyphens
 - `uv` handles Python version management, virtual environments, and dependency management
 - Dependencies are declared in `pyproject.toml` and locked in `uv.lock`
+- Dev tooling (`pytest`, `ruff`) lives in the `[dependency-groups].dev` group and is excluded from container images via `uv sync --no-dev`
 - Use `uv add` to add dependencies (updates both pyproject.toml and uv.lock)
 - Use `uv sync` to install dependencies from the lockfile
 - Use `uv run` to run commands in the virtual environment
